@@ -1,0 +1,60 @@
+# Default experiment configuration for protein-solubility-ml.
+seed: 42
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  models: models
+  figures: reports/figures
+  results: reports/results
+  logs: logs
+
+data:
+  deepsol:
+    # Khurana et al. 2018 (Bioinformatics 34:2605) — PSI-Biology derived binary solubility data.
+    base_url: https://raw.githubusercontent.com/sameerkhurana10/DSOL_rv0.2/master/data
+    files: [train_src, train_tgt, val_src, val_tgt, test_src, test_tgt]
+  esol:
+    # Niwa et al. 2009 (PNAS 106:4201) eSOL, train/test split as released with GraphSol
+    # (Chen et al. 2021, J. Cheminform. 13:7).
+    base_url: https://raw.githubusercontent.com/jcchan23/GraphSol/master/Data
+    files: [eSol_train.csv, eSol_test.csv]
+    # Solubility >= threshold is called "soluble" when a binary view is needed (as in GraphSol).
+    binary_threshold: 0.5
+
+features:
+  # Feature groups computed by solubility.data.features.featurize()
+  groups: [physchem, aac, dpc, ctd, triad]
+  triad_k: 3            # k-mer length over the 7-letter conjoint-triad reduced alphabet
+
+cv:
+  n_splits: 5
+
+tuning:
+  n_jobs: 6             # sklearn / xgboost / lightgbm threads (machine etiquette: <= 6)
+  metric_classification: roc_auc
+  metric_regression: r2
+  xgb_device: cuda      # falls back to cpu automatically if CUDA is unavailable
+  models:
+    # n_trials: Optuna TPE trials; tune_subsample: stratified subsample of the development set
+    # used for the (inner) 5-fold CV during tuning — keeps kernel/forest models tractable.
+    dummy:         {n_trials: 0,  tune_subsample: null}
+    logreg:        {n_trials: 20, tune_subsample: 20000}
+    svm_rbf:       {n_trials: 15, tune_subsample: 6000}
+    random_forest: {n_trials: 15, tune_subsample: 20000}
+    xgboost:       {n_trials: 40, tune_subsample: 30000}
+    lightgbm:      {n_trials: 40, tune_subsample: 30000}
+  # SVM fit cost grows ~quadratically; final model / full-dev CV use at most this many samples.
+  svm_max_train: 30000
+
+regression:
+  models: [dummy, ridge, svm_rbf, random_forest, xgboost, lightgbm]
+  n_trials: 40
+
+interpretability:
+  shap_background: 500
+  shap_explain: 2001    # explain the whole DeepSol test set
+  dependence_features: [net_charge_ph7, frac_K, gravy, lys_arg_ratio]
+
+bootstrap:
+  n_resamples: 1000
